@@ -1,11 +1,13 @@
 import { GraphQLError } from "graphql";
-import { db } from "../data/users.js";
-import { v4 as uuidv4 } from "uuid";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export const resolvers = {
   Query: {
-    users: (parent, args) => {
-      return db.users.filter((user) => {
+    users: async (parent, args) => {
+      const users = await prisma.user.findMany();
+      return users.filter((user) => {
         if (
           (!args.name || user.name === args.name) &&
           (!args.email || user.email === args.email)
@@ -15,8 +17,12 @@ export const resolvers = {
     },
   },
   Mutation: {
-    addUser: (parent, args) => {
-      const foundUser = db.users.find((user) => user.email === args.email);
+    addUser: async (parent, args) => {
+      const foundUser = await prisma.user.findUnique({
+        where: {
+          email: args.email,
+        },
+      });
       if (foundUser) {
         throw new GraphQLError("User already exists", {
           extensions: {
@@ -24,12 +30,20 @@ export const resolvers = {
           },
         });
       }
-      const user = { id: uuidv4(), name: args.name, email: args.email };
-      db.users.push(user);
+      const user = await prisma.user.create({
+        data: {
+          name: args.name,
+          email: args.email,
+        },
+      });
       return user;
     },
-    deleteUser: (parent, args) => {
-      const user = db.users.find((user) => user.email === args.email);
+    deleteUser: async (parent, args) => {
+      const user = await prisma.user.findUnique({
+        where: {
+          email: args.email,
+        },
+      });
       if (!user) {
         throw new GraphQLError("User does not exist", {
           extensions: {
@@ -37,8 +51,12 @@ export const resolvers = {
           },
         });
       }
-      db.users = db.users.filter((user) => user.email !== args.email);
-      return user;
+      const deleteUser = await prisma.user.delete({
+        where: {
+          email: args.email,
+        },
+      });
+      return deleteUser;
     },
   },
 };
